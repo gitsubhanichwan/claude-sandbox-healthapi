@@ -1,0 +1,10 @@
+.git
+.github
+.claude
+.gitignore
+Dockerfile
+.dockerignore
+*.md
+.env*
+.terraform
+*.tfstate*

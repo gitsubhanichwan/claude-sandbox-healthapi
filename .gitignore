@@ -1,0 +1,38 @@
+# Binaries
+healthapi
+healthapi.exe
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/bin/
+/dist/
+
+# Go
+vendor/
+go.work
+go.work.sum
+
+# Secrets / env
+.env
+.env.*
+*.pem
+*.key
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Claude local
+.claude/settings.local.json

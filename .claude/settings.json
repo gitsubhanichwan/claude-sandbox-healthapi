@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(~/.aws/**)",
+      "Read(//c/Users/*/.aws/**)",
+      "Read(//C/Users/*/.aws/**)"
+    ]
+  }
+}
