@@ -3,10 +3,10 @@ variable "region" {
   default = "ap-southeast-3"
 }
 
-variable "github_repo" {
-  description = "GitHub repository (owner/name) allowed to assume the deploy roles."
+variable "github_subject_prefix" {
+  description = "OIDC subject prefix of the GitHub repo allowed to assume the deploy roles. This repo uses immutable subject claims (owner and repo IDs); see: gh api repos/<owner>/<repo>/actions/oidc/customization/sub"
   type        = string
-  default     = "gitsubhanichwan/claude-sandbox-healthapi"
+  default     = "repo:gitsubhanichwan@179078035/claude-sandbox-healthapi@1438479873"
 }
 
 variable "image_tag" {

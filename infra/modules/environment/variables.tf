@@ -6,7 +6,7 @@ variable "region" {
   type = string
 }
 
-variable "github_repo" {
+variable "github_subject_prefix" {
   type = string
 }
 
