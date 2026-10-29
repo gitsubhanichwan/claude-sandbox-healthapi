@@ -97,7 +97,7 @@ data "aws_iam_policy_document" "deploy_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:environment:${var.environment}"]
+      values   = ["${var.github_subject_prefix}:environment:${var.environment}"]
     }
   }
 }
@@ -146,6 +146,7 @@ data "aws_iam_policy_document" "deploy" {
       "ecs:DescribeServiceRevisions",
     ]
     resources = [
+      aws_ecs_express_gateway_service.app.service_arn,
       "${replace(aws_ecs_express_gateway_service.app.service_arn, ":service/", ":service-deployment/")}/*",
       "${replace(aws_ecs_express_gateway_service.app.service_arn, ":service/", ":service-revision/")}/*",
     ]

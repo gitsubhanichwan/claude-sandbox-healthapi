@@ -65,13 +65,13 @@ module "staging" {
     aws = aws.staging
   }
 
-  environment       = "staging"
-  region            = var.region
-  github_repo       = var.github_repo
-  oidc_provider_arn = aws_iam_openid_connect_provider.github.arn
-  ecr_repository    = aws_ecr_repository.app
-  image_tag         = var.image_tag
-  app_version       = var.app_versions["staging"]
+  environment           = "staging"
+  region                = var.region
+  github_subject_prefix = var.github_subject_prefix
+  oidc_provider_arn     = aws_iam_openid_connect_provider.github.arn
+  ecr_repository        = aws_ecr_repository.app
+  image_tag             = var.image_tag
+  app_version           = var.app_versions["staging"]
 
   infrastructure_role_arn = aws_iam_role.infrastructure.arn
   max_task_count          = 1
@@ -85,13 +85,13 @@ module "production" {
     aws = aws.production
   }
 
-  environment       = "production"
-  region            = var.region
-  github_repo       = var.github_repo
-  oidc_provider_arn = aws_iam_openid_connect_provider.github.arn
-  ecr_repository    = aws_ecr_repository.app
-  image_tag         = var.image_tag
-  app_version       = var.app_versions["production"]
+  environment           = "production"
+  region                = var.region
+  github_subject_prefix = var.github_subject_prefix
+  oidc_provider_arn     = aws_iam_openid_connect_provider.github.arn
+  ecr_repository        = aws_ecr_repository.app
+  image_tag             = var.image_tag
+  app_version           = var.app_versions["production"]
 
   infrastructure_role_arn = aws_iam_role.infrastructure.arn
   max_task_count          = 1
