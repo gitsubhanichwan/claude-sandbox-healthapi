@@ -23,16 +23,6 @@ data "aws_iam_policy_document" "ecs_tasks_assume" {
   }
 }
 
-data "aws_iam_policy_document" "ecs_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["ecs.amazonaws.com"]
-    }
-  }
-}
-
 resource "aws_iam_role" "execution" {
   name               = "${local.name}-execution"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
@@ -43,23 +33,13 @@ resource "aws_iam_role_policy_attachment" "execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-resource "aws_iam_role" "infrastructure" {
-  name               = "${local.name}-infrastructure"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-}
-
-resource "aws_iam_role_policy_attachment" "infrastructure" {
-  role       = aws_iam_role.infrastructure.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRolePolicyForServices"
-}
-
 # ---------- Express Mode service ----------
 
 resource "aws_ecs_express_gateway_service" "app" {
   service_name            = local.name
   cluster                 = aws_ecs_cluster.this.name
   execution_role_arn      = aws_iam_role.execution.arn
-  infrastructure_role_arn = aws_iam_role.infrastructure.arn
+  infrastructure_role_arn = var.infrastructure_role_arn
   cpu                     = var.cpu
   memory                  = var.memory
   health_check_path       = "/health"
@@ -81,7 +61,7 @@ resource "aws_ecs_express_gateway_service" "app" {
 
   scaling_target {
     min_task_count = 1
-    max_task_count = 2
+    max_task_count = var.max_task_count
   }
 
   # CI deploys new images and versions; Terraform only owns the initial shape.
@@ -89,10 +69,7 @@ resource "aws_ecs_express_gateway_service" "app" {
     ignore_changes = [primary_container[0].image, primary_container[0].environment]
   }
 
-  depends_on = [
-    aws_iam_role_policy_attachment.execution,
-    aws_iam_role_policy_attachment.infrastructure,
-  ]
+  depends_on = [aws_iam_role_policy_attachment.execution]
 }
 
 # ---------- GitHub Actions deploy role ----------
@@ -173,7 +150,7 @@ data "aws_iam_policy_document" "deploy" {
     actions = ["iam:PassRole"]
     resources = [
       aws_iam_role.execution.arn,
-      aws_iam_role.infrastructure.arn,
+      var.infrastructure_role_arn,
     ]
     condition {
       test     = "StringEquals"

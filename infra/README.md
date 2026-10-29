@@ -13,3 +13,12 @@ terraform plan
 Notes:
 - The Express service needs an image to exist at creation. Push an image tagged `bootstrap` to ECR first (or apply with `-target=aws_ecr_repository.app` and push before applying the rest). Terraform ignores later image/env changes; CI owns deploys.
 - `aws_ecs_express_gateway_service` has no `propagate_tags` argument, so tags set via provider `default_tags` apply to the service, not necessarily to its tasks.
+- ECS Express Mode places services that share a VPC and subnet type behind one ALB (up to 25, host-header routing). Both environments use the default VPC and subnets and one shared infrastructure role, so they should share an ALB; this is decided by ECS, not by Terraform, and can only be confirmed after the first apply.
+- Autoscaling is capped at 1 task per environment for the trial.
+- GitHub Environments `staging` and `production` must exist (production requires a reviewer) and deploy only from `main`; the OIDC `sub` claim in the deploy roles matches them.
+
+## Apply order (from `main`, each step approved separately)
+1. `bootstrap/`: apply, read `state_bucket`.
+2. Root: `terraform init -backend-config="bucket=<state_bucket>"`, then `apply -target=aws_ecr_repository.app`.
+3. Build and push the app image tagged `bootstrap` to ECR.
+4. Root: full `apply`.
