@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  AWS_REGION: ap-southeast-3
+  ECR_REPOSITORY: healthapi
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,3 +31,78 @@ jobs:
       - uses: actions/checkout@v7
       - name: docker build
         run: docker build -t healthapi:ci .
+
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, docker]
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      - name: Build and push image
+        id: push
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          image="${REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
+          docker build -t "$image" .
+          docker push "$image"
+          # Deploy by digest so production runs exactly the bytes tested in staging.
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
+          echo "digest=${digest##*@}" >> "$GITHUB_OUTPUT"
+      - name: Deploy to staging
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: .github/scripts/deploy.sh staging "${REGISTRY}/${ECR_REPOSITORY}@${DIGEST}" "$GITHUB_SHA"
+      - name: Smoke test staging
+        run: .github/scripts/smoke-test.sh staging "$GITHUB_SHA"
+
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      - name: Check the staging image exists in ECR
+        env:
+          DIGEST: ${{ needs.deploy-staging.outputs.digest }}
+        run: |
+          found=$(aws ecr batch-get-image --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageDigest=${DIGEST}" \
+            --query 'images[0].imageId.imageDigest' --output text)
+          [ "$found" = "$DIGEST" ] || { echo "::error::Image ${DIGEST} not found in ECR"; exit 1; }
+      - name: Deploy to production
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          DIGEST: ${{ needs.deploy-staging.outputs.digest }}
+        run: .github/scripts/deploy.sh production "${REGISTRY}/${ECR_REPOSITORY}@${DIGEST}" "$GITHUB_SHA"
+      - name: Smoke test production
+        run: .github/scripts/smoke-test.sh production "$GITHUB_SHA"

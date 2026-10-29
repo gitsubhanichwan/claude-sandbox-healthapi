@@ -138,6 +138,25 @@ data "aws_iam_policy_document" "deploy" {
     resources = [aws_ecs_express_gateway_service.app.service_arn]
   }
 
+  # CI follows the deployment it started (including automatic rollback).
+  statement {
+    sid = "TrackOwnDeployments"
+    actions = [
+      "ecs:DescribeServiceDeployments",
+      "ecs:DescribeServiceRevisions",
+    ]
+    resources = [
+      "${replace(aws_ecs_express_gateway_service.app.service_arn, ":service/", ":service-deployment/")}/*",
+      "${replace(aws_ecs_express_gateway_service.app.service_arn, ":service/", ":service-revision/")}/*",
+    ]
+  }
+
+  statement {
+    sid       = "ListOwnDeployments"
+    actions   = ["ecs:ListServiceDeployments"]
+    resources = [aws_ecs_express_gateway_service.app.service_arn]
+  }
+
   # Updating a service registers a new task definition revision; ECS does not
   # support resource-level scoping for these actions.
   statement {
