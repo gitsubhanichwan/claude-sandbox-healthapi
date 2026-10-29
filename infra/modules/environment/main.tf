@@ -62,6 +62,11 @@ resource "aws_ecs_express_gateway_service" "app" {
   scaling_target {
     min_task_count = 1
     max_task_count = var.max_task_count
+
+    # Set explicitly (these are the ECS defaults): left unset, the provider
+    # returns them after apply and fails with "inconsistent result".
+    auto_scaling_metric       = "AVERAGE_CPU"
+    auto_scaling_target_value = 60
   }
 
   # CI deploys new images and versions; Terraform only owns the initial shape.
