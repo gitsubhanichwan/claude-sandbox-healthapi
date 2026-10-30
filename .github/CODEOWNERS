@@ -1,0 +1,4 @@
+# Required reviewer for high-risk paths (enable "Require review from Code Owners" to enforce).
+/infra/            @gitsubhanichwan
+/.github/          @gitsubhanichwan
+/.claude/          @gitsubhanichwan

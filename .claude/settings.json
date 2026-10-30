@@ -1,9 +1,53 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git fetch:*)",
+      "Bash(go vet:*)",
+      "Bash(go test:*)",
+      "Bash(terraform fmt:*)",
+      "Bash(terraform validate:*)"
+    ],
+    "ask": [
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(git push:*)",
+      "PowerShell(terraform apply:*)",
+      "PowerShell(terraform destroy:*)",
+      "PowerShell(git push:*)"
+    ],
     "deny": [
       "Read(~/.aws/**)",
       "Read(//c/Users/*/.aws/**)",
-      "Read(//C/Users/*/.aws/**)"
+      "Read(//C/Users/*/.aws/**)",
+      "Read(~/.ssh/**)",
+      "Read(//c/Users/*/.ssh/**)",
+      "Read(//C/Users/*/.ssh/**)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(./**/*.tfstate)",
+      "Read(./**/*.tfstate.*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/session-git-sync.sh\" || exit 0", "timeout": 15 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/pre-commit-check.sh\"", "timeout": 180 }
+        ]
+      }
     ]
   }
 }
