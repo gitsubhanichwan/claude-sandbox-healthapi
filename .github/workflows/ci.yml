@@ -15,6 +15,7 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -27,6 +28,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: docker build
@@ -36,6 +38,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [test, docker]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: staging
     concurrency:
       group: deploy-staging
@@ -77,6 +80,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: deploy-staging
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: production
     concurrency:
       group: deploy-production
@@ -101,10 +105,34 @@ jobs:
             --image-ids "imageDigest=${DIGEST}" \
             --query 'images[0].imageId.imageDigest' --output text)
           [ "$found" = "$DIGEST" ] || { echo "::error::Image ${DIGEST} not found in ECR"; exit 1; }
+      - name: Record the revision serving production
+        id: previous
+        run: .github/scripts/serving-revision.sh production >> "$GITHUB_OUTPUT"
       - name: Deploy to production
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           DIGEST: ${{ needs.deploy-staging.outputs.digest }}
+          # Below the script default so a rollback still fits in the job timeout.
+          DEPLOY_TIMEOUT_SECONDS: "1200"
         run: .github/scripts/deploy.sh production "${REGISTRY}/${ECR_REPOSITORY}@${DIGEST}" "$GITHUB_SHA"
       - name: Smoke test production
+        id: smoke
         run: .github/scripts/smoke-test.sh production "$GITHUB_SHA"
+      # The new revision is healthy for ECS but failed the smoke test, so the circuit
+      # breaker will not roll it back. Redeploy what was serving before. The job
+      # stays failed because the smoke test step failed.
+      - name: Roll back production
+        if: failure() && steps.smoke.outcome == 'failure'
+        env:
+          PREVIOUS_IMAGE: ${{ steps.previous.outputs.image }}
+          PREVIOUS_VERSION: ${{ steps.previous.outputs.version }}
+          DEPLOY_TIMEOUT_SECONDS: "900"
+        run: |
+          if [ "$PREVIOUS_VERSION" = "$GITHUB_SHA" ]; then
+            echo "::error::The previous revision is the same version (${PREVIOUS_VERSION}); nothing to roll back to."
+            exit 1
+          fi
+          echo "::warning::Production smoke test failed; rolling back to ${PREVIOUS_VERSION}."
+          .github/scripts/deploy.sh production "$PREVIOUS_IMAGE" "$PREVIOUS_VERSION"
+          .github/scripts/smoke-test.sh production "$PREVIOUS_VERSION"
+          echo "::error::Rolled back production to ${PREVIOUS_VERSION}. ${GITHUB_SHA} is not serving."
